@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if entry %}Modifier la fiche{% else %}Nouvelle fiche KB{% endif %}
+{% endblock %}
+
+{% block content %}
+  <h3>
+    {% if entry %}
+      Modifier la fiche #{{ entry.id }}
+    {% else %}
+      Nouvelle fiche de connaissance
+    {% endif %}
+  </h3>
+
+  <form method="post" action="{{ action_url }}">
+    <div class="mb-3">
+      <label for="numero_incident" class="form-label">Numéro d’incident (facultatif)</label>
+      <input
+        type="text"
+        class="form-control"
+        id="numero_incident"
+        name="numero_incident"
+        value="{{ entry.numero_incident if entry else '' }}"
+      />
+    </div>
+
+    <div class="mb-3">
+      <label for="titre" class="form-label">Titre</label>
+      <input
+        type="text"
+        class="form-control"
+        id="titre"
+        name="titre"
+        value="{{ entry.titre if entry else '' }}"
+        required
+      />
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">Description complète</label>
+      <textarea
+        class="form-control"
+        id="description"
+        name="description"
+        rows="4"
+        required
+      >{{ entry.description if entry else '' }}</textarea>
+    </div>
+
+    <div class="mb-3">
+      <label for="resolution" class="form-label">Résolution en ligne</label>
+      <textarea
+        class="form-control"
+        id="resolution"
+        name="resolution"
+        rows="3"
+        required
+      >{{ entry.resolution if entry else '' }}</textarea>
+    </div>
+
+    <div class="form-check mb-3">
+      <input
+        class="form-check-input"
+        type="checkbox"
+        id="possible_cau"
+        name="possible_cau"
+        {% if entry and entry.possible_cau == 1 %}checked{% endif %}
+      />
+      <label class="form-check-label" for="possible_cau">
+        Possible par CAU
+      </label>
+    </div>
+
+    <div class="mb-3">
+      <label for="temps_resolution" class="form-label">Temps estimé</label>
+      <input
+        type="text"
+        class="form-control"
+        id="temps_resolution"
+        name="temps_resolution"
+        value="{{ entry.temps_resolution if entry else '' }}"
+        placeholder="Ex : 15 minutes, 1 heure, etc."
+      />
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      {% if entry %}Mettre à jour{% else %}Créer{% endif %}
+    </button>
+    <a href="{{ url_for('view_kb') }}" class="btn btn-secondary">Retour</a>
+  </form>
+{% endblock %}

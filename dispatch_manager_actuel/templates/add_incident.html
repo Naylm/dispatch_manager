@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ajouter Incident</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body class="container py-4">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-light bg-light rounded mb-4 shadow-sm">
+    <div class="container-fluid">
+      <span class="navbar-brand fw-bold">Ajouter un incident</span>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('techniciens') }}" class="btn btn-outline-info btn-sm">👨‍🔧 Gestion techniciens</a>
+        <button id="themeToggle" class="btn btn-outline-secondary btn-sm">🌙</button>
+        <a href="#" onclick="location.reload();return false;" class="btn btn-outline-success btn-sm">🔄</a>
+        <a href="{{ url_for('home') }}" class="btn btn-outline-primary btn-sm">← Retour</a>
+      </div>
+    </div>
+  </nav>
+
+  <form method="post" class="p-3 rounded shadow-sm bg-white">
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label">Numéro Incident</label>
+        <input name="numero" class="form-control" required autocomplete="off">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Site</label>
+        <select name="site" class="form-select" required>
+          <option>HD</option>
+          <option>HGRL</option>
+          <option>SJ</option>
+          <option>Periph</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Sujet</label>
+        <select name="sujet" class="form-select" required>
+          <option>Portables</option>
+          <option>PC Fixe</option>
+          <option>Imprimantes - impressions</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Urgence</label>
+        <select name="urgence" class="form-select" required>
+          <option>Haute</option>
+          <option>Moyenne</option>
+          <option>Basse</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Collaborateur</label>
+        <select name="collaborateur" class="form-select" required>
+          {% for tech in techniciens %}
+            <option value="{{ tech.prenom }}">{{ tech.prenom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label">Date d'affectation</label>
+        <input type="date" name="date_affectation" class="form-control" value="{{ current_date }}" required>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-success" type="submit">Ajouter</button>
+      <a href="{{ url_for('home') }}" class="btn btn-secondary">Annuler</a>
+    </div>
+  </form>
+
+  <script>
+    const toggle = document.getElementById('themeToggle');
+    toggle.onclick = () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    };
+    if (localStorage.getItem('theme') === 'dark') {
+      document.body.classList.add('dark');
+    }
+  </script>
+
+</body>
+</html>

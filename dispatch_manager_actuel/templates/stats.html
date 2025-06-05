@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statistiques Dispatch</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+
+  <!-- Votre CSS perso (si besoin) -->
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" />
+
+  <!-- Chart.js depuis CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Pour le responsive des graphiques */
+    .chart-container {
+      position: relative;
+      margin: auto;
+      height: 300px;
+      width: 100%;
+    }
+    .section-title {
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      font-weight: bold;
+    }
+    .card-shadow {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      border-radius: 8px;
+    }
+    .percent-box {
+      background-color: #f8f9fa;
+      padding: 0.75rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    select[multiple] {
+      height: 100px;
+    }
+  </style>
+</head>
+<body class="container py-4">
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-light bg-light rounded mb-4 shadow-sm">
+    <div class="container-fluid">
+      <a href="{{ url_for('home') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
+      <span class="navbar-brand mx-auto">📊 Statistiques Dispatch</span>
+      <button id="themeToggle" class="btn btn-outline-secondary btn-sm" title="Thème sombre/clair">🌙</button>
+    </div>
+  </nav>
+
+  {% if role == 'admin' %}
+    <div class="mb-3">
+      <a href="{{ url_for('export_stats_excel') }}" class="btn btn-success me-2">
+        📥 Export Excel
+      </a>
+      <a href="{{ url_for('export_stats_pdf') }}" class="btn btn-danger">
+        📥 Export PDF
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- ===================== -->
+  <!-- PANNEAU DE FILTRAGE -->
+  <!-- ===================== -->
+  <div class="card card-shadow mb-4 p-3">
+    <h5 class="fw-bold">Filtres dynamiques</h5>
+    <div class="row gy-2">
+      <!-- Plage de dates -->
+      <div class="col-md-3">
+        <label for="filterStart" class="form-label">Date début</label>
+        <input type="date" id="filterStart" class="form-control" />
+      </div>
+      <div class="col-md-3">
+        <label for="filterEnd" class="form-label">Date fin</label>
+        <input type="date" id="filterEnd" class="form-control" />
+      </div>
+
+      <!-- Techniciens (multiple) -->
+      <div class="col-md-3">
+        <label for="filterTech" class="form-label">Technicien(s)</label>
+        <select id="filterTech" class="form-select" multiple>
+          <!-- Options insérées en JS -->
+        </select>
+      </div>
+
+      <!-- Statuts (checkboxes) -->
+      <div class="col-md-3">
+        <label class="form-label d-block">Statut(s)</label>
+        <div id="filterStatus" class="d-flex flex-wrap gap-2">
+          <!-- Checkboxes insérées en JS -->
+        </div>
+      </div>
+
+      <div class="col-12 text-end">
+        <button id="btnApply" class="btn btn-primary">Appliquer</button>
+        <button id="btnReset" class="btn btn-outline-secondary">Réinitialiser</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== -->
+  <!-- STATISTIQUES PAR TECHNICIEN -->
+  <!-- ===================== -->
+  <h4 class="section-title">Statistiques par Technicien</h4>
+  <div class="card card-shadow mb-4 p-3">
+    <canvas id="barChartParTech"></canvas>
+  </div>
+
+  <!-- =========================== -->
+  <!-- ÉVOLUTION HEBDOMADAIRE J-7 → J -->
+  <!-- =========================== -->
+  <h4 class="section-title">Évolution Hebdomadaire</h4>
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card card-shadow p-3">
+        <h6 class="fw-bold">Tickets “Restants” / Jour</h6>
+        <div class="chart-container">
+          <canvas id="lineChartRestants"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 mt-3 mt-md-0">
+      <div class="card card-shadow p-3">
+        <h6 class="fw-bold">Tickets “Transférés + Réservés” / Jour</h6>
+        <div class="chart-container">
+          <canvas id="lineChartTransfRes"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= -->
+  <!-- TABLES QUOTIDIENNES -->
+  <!-- ========================= -->
+
+  <!-- 1) Tickets Traités par jour -->
+  <h4 class="section-title">Tickets Traités par Jour</h4>
+  <div class="table-responsive mb-4">
+    <table class="table table-bordered table-sm" id="tableTraites">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Site</th>
+          <th>Sujet</th>
+          <th>Nombre</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Contenu généré par JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2) Tickets Restants (Affecté+En Cours+Suspendu) par jour -->
+  <h4 class="section-title">Tickets Restants par Jour</h4>
+  <div class="table-responsive mb-4">
+    <table class="table table-bordered table-sm" id="tableRestantsDaily">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Site</th>
+          <th>Sujet</th>
+          <th>Affecté</th>
+          <th>En cours</th>
+          <th>Suspendu</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Contenu généré par JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 3) J-1 : progression en % -->
+  <h4 class="section-title">Chiffres J-1 (Progression par rapport au jour précédent)</h4>
+  <div class="row">
+    <div class="col-md-4">
+      <div class="percent-box">
+        <h6 class="mb-1">Traités (%)</h6>
+        <p id="pctTraites" class="fs-4 text-muted">-</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="percent-box">
+        <h6 class="mb-1">Restants (%)</h6>
+        <p id="pctRestants" class="fs-4 text-muted">-</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="percent-box">
+        <h6 class="mb-1">Transférés/Réservés (%)</h6>
+        <p id="pctTransf" class="fs-4 text-muted">-</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= -->
+  <!-- DARK MODE TOGGLE -->
+  <!-- ========================= -->
+  <script>
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.onclick = () => {
+      document.body.classList.toggle('dark');
+      localStorage.setItem(
+        'theme',
+        document.body.classList.contains('dark') ? 'dark' : 'light'
+      );
+    };
+    if (localStorage.getItem('theme') === 'dark') {
+      document.body.classList.add('dark');
+    }
+  </script>
+
+  <!-- ========================= -->
+  <!-- JS POUR APPELS AJAX & CHART.JS -->
+  <!-- ========================= -->
+  <script>
+    // ----------------------------------------------------
+    // 1) On injecte inline les listes initiales depuis Jinja
+    // ----------------------------------------------------
+    const ALL_TECHNICIENS = {{ techniciens_list | tojson }};
+    const ALL_STATUTS      = {{ statuts          | tojson }};
+
+    // ----------------------------------------------------
+    // 2) On peuple le <select multiple> “Techniciens” ET les checkboxes “Statuts”
+    // ----------------------------------------------------
+    window.addEventListener('DOMContentLoaded', () => {
+      // 2.a) <select multiple> techniciens
+      const selTech = document.getElementById('filterTech');
+      ALL_TECHNICIENS.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.innerText = t;
+        selTech.appendChild(opt);
+      });
+
+      // 2.b) Checkboxes statuts
+      const divStatus = document.getElementById('filterStatus');
+      ALL_STATUTS.forEach(s => {
+        const idChk = `status-${s.replace(/\s+/g,'-')}`;
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('form-check','form-check-inline');
+
+        const inp = document.createElement('input');
+        inp.type = 'checkbox';
+        inp.classList.add('form-check-input');
+        inp.id = idChk;
+        inp.value = s;
+        wrapper.appendChild(inp);
+
+        const lbl = document.createElement('label');
+        lbl.htmlFor = idChk;
+        lbl.classList.add('form-check-label');
+        lbl.innerText = s;
+        wrapper.appendChild(lbl);
+
+        divStatus.appendChild(wrapper);
+      });
+
+      // 2.c) Initialisation des dates (J-7 → J)
+      const today = new Date();
+      const prior = new Date();
+      prior.setDate(today.getDate() - 7);
+      document.getElementById('filterStart').value = prior.toISOString().slice(0,10);
+      document.getElementById('filterEnd').value   = today.toISOString().slice(0,10);
+
+      // 2.d) Charger la première fois les données après peupler filtres
+      applyFilters();
+    });
+
+    // ----------------------------------------------------
+    // 3) Au clic “Appliquer” ou “Réinitialiser”
+    // ----------------------------------------------------
+    document.getElementById('btnApply').addEventListener('click', applyFilters);
+    document.getElementById('btnReset').addEventListener('click', () => {
+      // Remettre dates à J-7 → J
+      const today = new Date();
+      const prior = new Date();
+      prior.setDate(today.getDate() - 7);
+      document.getElementById('filterStart').value = prior.toISOString().slice(0,10);
+      document.getElementById('filterEnd').value   = today.toISOString().slice(0,10);
+
+      // Décocher techniciens & statuts
+      document.querySelectorAll('#filterTech option').forEach(opt => opt.selected = false);
+      document.querySelectorAll('#filterStatus input[type=checkbox]').forEach(chk => chk.checked = false);
+
+      applyFilters();
+    });
+
+    // ----------------------------------------------------
+    // 4) Fonction principale qui appelle /stats/data puis met à jour tout
+    // ----------------------------------------------------
+    function applyFilters() {
+      const start = document.getElementById('filterStart').value;
+      const end   = document.getElementById('filterEnd').value;
+
+      // Techniciens sélectionnés
+      const selTechEl = document.getElementById('filterTech');
+      const selectedTechs = Array.from(selTechEl.selectedOptions).map(o => o.value);
+
+      // Statuts sélectionnés
+      const selectedStatus = Array.from(
+        document.querySelectorAll('#filterStatus input[type=checkbox]:checked')
+      ).map(c => c.value);
+
+      // Construction de l’URL GET
+      const params = new URLSearchParams();
+      if (start)  params.append('start', start);
+      if (end)    params.append('end',   end);
+      if (selectedTechs.length)  params.append('tech', selectedTechs.join(','));
+      if (selectedStatus.length) params.append('status', selectedStatus.join(','));
+
+      fetch(`/stats/data?${params.toString()}`)
+        .then(resp => resp.json())
+        .then(json => {
+          updateBarChart(json.dataParTech, json.statuts, json.techniciens);
+          updateLineRest(json.dates_restants, json.values_restants);
+          updateLineTransf(json.dates_transfres, json.values_transfres);
+          rebuildTableTraites(json.traites);
+          rebuildTableRestantsDaily(json.restants_daily);
+          updatePercentBoxes(json.percent_traites, json.percent_restants, json.percent_transf);
+        })
+        .catch(err => console.error('Erreur fetch /stats/data:', err));
+    }
+
+    // ----------------------------------------------------
+    // 5) INITIALISATION DES CHARTS VIDES
+    // ----------------------------------------------------
+    let barChart, lineChartRest, lineChartTransf;
+
+    function initCharts() {
+      // ----- BarChart par technicien -----
+      const ctxBar = document.getElementById('barChartParTech').getContext('2d');
+      barChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: []
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: 'Nombre de tickets par statut et par technicien' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true }
+          }
+        }
+      });
+
+      // ----- LineChart “Restants” -----
+      const ctxRest = document.getElementById('lineChartRestants').getContext('2d');
+      lineChartRest = new Chart(ctxRest, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Tickets restants',
+            data: [],
+            borderColor: '#fd7e14',
+            backgroundColor: 'rgba(253, 126, 20, 0.2)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: 'Évolution des tickets restants (Affecté/En cours/Suspendu)' }
+          },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      // ----- LineChart “Transf + Réserv” -----
+      const ctxTransf = document.getElementById('lineChartTransfRes').getContext('2d');
+      lineChartTransf = new Chart(ctxTransf, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Tickets transferts/réservations',
+            data: [],
+            borderColor: '#6f42c1',
+            backgroundColor: 'rgba(111, 66, 193, 0.2)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: 'Évolution des tickets Transférés + Réservés' }
+          },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    // ----------------------------------------------------
+    // 6) FONCTIONS DE MISE À JOUR
+    // ----------------------------------------------------
+    function updateBarChart(dataParTech, statuts, techniciensList) {
+      barChart.data.labels = techniciensList;
+      barChart.data.datasets = statuts.map((etat, idx) => ({
+        label: etat,
+        data: techniciensList.map(t => (dataParTech[t] && dataParTech[t][etat]) || 0),
+        backgroundColor: [
+          '#0d6efd88','#fd7e1477','#19875477','#dc354577','#aee4ff77','#ffe0f077'
+        ][idx % 6],
+        borderColor: 'rgba(0,0,0,0)',
+        borderWidth: 1
+      }));
+      barChart.update();
+    }
+
+    function updateLineRest(datesRest, valuesRest) {
+      lineChartRest.data.labels = datesRest.map(d => {
+        const parts = d.split('-');
+        return parts[2] + '-' + parts[1];
+      });
+      lineChartRest.data.datasets[0].data = valuesRest;
+      lineChartRest.update();
+    }
+
+    function updateLineTransf(datesTransf, valuesTransf) {
+      lineChartTransf.data.labels = datesTransf.map(d => {
+        const parts = d.split('-');
+        return parts[2] + '-' + parts[1];
+      });
+      lineChartTransf.data.datasets[0].data = valuesTransf;
+      lineChartTransf.update();
+    }
+
+    function rebuildTableTraites(rows) {
+      const tbody = document.querySelector('#tableTraites tbody');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${(new Date(r.date_affectation)).toLocaleDateString('fr-FR')}</td>
+          <td>${r.site}</td>
+          <td>${r.sujet}</td>
+          <td>
+            <a href="/details?date=${r.date_affectation}&site=${encodeURIComponent(r.site)}&sujet=${encodeURIComponent(r.sujet)}&type=traite">
+              ${r.total}
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function rebuildTableRestantsDaily(rows) {
+      const tbody = document.querySelector('#tableRestantsDaily tbody');
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${(new Date(r.date_affectation)).toLocaleDateString('fr-FR')}</td>
+          <td>${r.site}</td>
+          <td>${r.sujet}</td>
+          <td>
+            <a href="/details?date=${r.date_affectation}&site=${encodeURIComponent(r.site)}&sujet=${encodeURIComponent(r.sujet)}&type=restant">
+              ${r.affecte}
+            </a>
+          </td>
+          <td>
+            <a href="/details?date=${r.date_affectation}&site=${encodeURIComponent(r.site)}&sujet=${encodeURIComponent(r.sujet)}&type=restant">
+              ${r.en_cours}
+            </a>
+          </td>
+          <td>
+            <a href="/details?date=${r.date_affectation}&site=${encodeURIComponent(r.site)}&sujet=${encodeURIComponent(r.sujet)}&type=restant">
+              ${r.suspendu}
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updatePercentBoxes(pTraites, pRestants, pTransf) {
+      document.getElementById('pctTraites').innerText   = (pTraites != null)   ? `${pTraites} %`   : 'Données insuffisantes';
+      document.getElementById('pctRestants').innerText  = (pRestants != null)  ? `${pRestants} %`  : 'Données insuffisantes';
+      document.getElementById('pctTransf').innerText    = (pTransf   != null)  ? `${pTransf}   %`  : 'Données insuffisantes';
+    }
+
+    // ----------------------------------------------------
+    // 7) INIT CHARTS AU CHARGEMENT
+    // ----------------------------------------------------
+    document.addEventListener('DOMContentLoaded', initCharts);
+  </script>
+</body>
+</html>

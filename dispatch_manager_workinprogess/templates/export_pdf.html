@@ -1,0 +1,141 @@
+<!-- templates/export_pdf.html -->
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export PDF des Incidents</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 1cm;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1em;
+    }
+    .tech-section {
+      page-break-inside: avoid;
+      margin-bottom: 2em;
+    }
+    .tech-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5em;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #444;
+      padding: 4px 6px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .no-data {
+      text-align: center;
+      font-style: italic;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Export PDF des Incidents Filtrés</h1>
+
+  {# On itère sur chaque technicien sélectionné #}
+  {% for tech in techniciens %}
+    <div class="tech-section">
+      <div class="tech-title">Technicien : {{ tech }}</div>
+
+      {# Filtrer uniquement les incidents du technicien courant #}
+      {% set incidents_tech = incidents | selectattr('collaborateur', 'equalto', tech) | list %}
+
+      {% if incidents_tech %}
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Date Affectation</th>
+              <th>Numéro</th>
+              <th>Site</th>
+              <th>Sujet</th>
+              <th>Urgence</th>
+              <th>État</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inc in incidents_tech %}
+            <tr>
+              <td>{{ inc.id }}</td>
+              <td>{{ inc.date_affectation | format_date }}</td>
+              <td>{{ inc.numero }}</td>
+              <td>{{ inc.site }}</td>
+              <td>{{ inc.sujet }}</td>
+              <td>{{ inc.urgence }}</td>
+              <td>{{ inc.etat }}</td>
+              <td>{{ inc.notes or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="no-data">Aucun incident pour ce technicien.</p>
+      {% endif %}
+
+    </div>
+  {% endfor %}
+
+  {# Si la liste "techniciens" est vide, on affiche tous les incidents sans distinction #}
+  {% if techniciens|length == 0 %}
+    <div class="tech-section">
+      <div class="tech-title">Tous les incidents</div>
+      {% if incidents %}
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Date Affectation</th>
+              <th>Numéro</th>
+              <th>Site</th>
+              <th>Sujet</th>
+              <th>Collaborateur</th>
+              <th>Urgence</th>
+              <th>État</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inc in incidents %}
+            <tr>
+              <td>{{ inc.id }}</td>
+              <td>{{ inc.date_affectation | format_date }}</td>
+              <td>{{ inc.numero }}</td>
+              <td>{{ inc.site }}</td>
+              <td>{{ inc.sujet }}</td>
+              <td>{{ inc.collaborateur }}</td>
+              <td>{{ inc.urgence }}</td>
+              <td>{{ inc.etat }}</td>
+              <td>{{ inc.notes or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="no-data">Aucun incident à afficher.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+</body>
+</html>

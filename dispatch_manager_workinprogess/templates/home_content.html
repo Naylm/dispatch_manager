@@ -1,0 +1,603 @@
+{# templates/home_content.html #}
+
+{% if role == 'admin' %}
+  <!-- ========================= -->
+  <!-- BARRE DE RECHERCHE & FILTRES -->
+  <!-- ========================= -->
+  <div class="mb-4 d-flex flex-wrap align-items-center gap-2">
+    <!-- Recherche texte (n° / site / sujet) -->
+    <input
+      id="searchInput"
+      type="text"
+      class="form-control"
+      style="max-width: 300px;"
+      placeholder="🔍 Rechercher (n° / site / sujet)"
+    />
+
+    <!-- Filtre État -->
+    <select id="filterEtat" class="form-select" style="max-width: 180px;">
+      <option value="">— Filtrer par état —</option>
+      <option value="affecté">Affecté</option>
+      <option value="en cours de préparation">En cours de préparation</option>
+      <option value="traîté">Traité</option>
+      <option value="suspendu">Suspendu</option>
+      <option value="en réservation">En réservation</option>
+      <option value="transféré">Transféré</option>
+    </select>
+
+    <!-- Filtre Urgence -->
+    <select id="filterUrgence" class="form-select" style="max-width: 140px;">
+      <option value="">— Filtrer par urgence —</option>
+      <option value="basse">Basse</option>
+      <option value="moyenne">Moyenne</option>
+      <option value="haute">Haute</option>
+      <option value="critique">Critique</option>
+    </select>
+
+    <!-- Filtre Site -->
+    <select id="filterSite" class="form-select" style="max-width: 200px;">
+      <option value="">— Filtrer par site —</option>
+      {% set sites = incidents | map(attribute='site') | unique | sort %}
+      {% for s in sites %}
+        <option value="{{ s|lower }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+
+    <!-- Bouton Réinitialiser -->
+    <button id="clearFiltersBtn" class="btn btn-outline-secondary btn-sm">
+      🔄 Réinitialiser
+    </button>
+  </div>
+
+  <!-- ========================= -->
+  <!-- GRILLE DES TECHNICIENS + INCIDENTS (HORIZONTAL SCROLL) -->
+  <!-- ========================= -->
+  <div
+    class="row flex-nowrap gx-3"
+    id="drag-root"
+    style="overflow-x: auto; white-space: nowrap;"
+  >
+    {% for tech in techniciens %}
+      <div
+        class="col-md-6 col-lg-3 mb-4 drag-col"
+        data-technicien="{{ tech.prenom }}"
+        style="flex: 0 0 auto; display: inline-block;"
+      >
+        <div class="card shadow-sm h-100">
+          <div class="card-header text-center fw-bold">
+            {{ tech.prenom }}
+          </div>
+          <ul
+            class="list-group list-group-flush incident-list"
+            data-technicien="{{ tech.prenom }}"
+          >
+            {% set tech_incidents = incidents
+                 | selectattr("collaborateur", "equalto", tech.prenom)
+                 | list %}
+            {% if tech_incidents|length > 0 %}
+              {% for i in tech_incidents %}
+                <li
+                  class="list-group-item incident-card"
+                  draggable="true"
+                  data-id="{{ i.id }}"
+                  id="incident-{{ i.id }}"
+                  data-numero="{{ i.numero|lower }}"
+                  data-site="{{ i.site|lower }}"
+                  data-sujet="{{ i.sujet|lower }}"
+                  data-urgence="{{ i.urgence|lower }}"
+                  data-etat="{{ i.etat|lower }}"
+                >
+                  <strong>#{{ i.numero }}</strong><br>
+                  <small>{{ i.site }} / {{ i.sujet }}</small><br>
+                  <small>{{ i.date_affectation|format_date }}</small><br>
+
+                  {# ====== BADGE “État” ====== #}
+                  {% if i.etat == 'Traité' %}
+                    <span class="badge bg-success">{{ i.etat }}</span>
+                  {% elif i.etat == 'Affecté' %}
+                    <span class="badge bg-primary">{{ i.etat }}</span>
+                  {% elif i.etat == 'En cours de préparation' %}
+                    <span class="badge bg-warning text-dark">{{ i.etat }}</span>
+                  {% elif i.etat == 'Suspendu' %}
+                    <span class="badge bg-danger">{{ i.etat }}</span>
+                  {% else %}
+                    <span class="badge bg-secondary">{{ i.etat }}</span>
+                  {% endif %}
+                  {% if i.valide %}
+                    <span class="badge bg-purple">Validé</span>
+                  {% endif %}
+                  <br>
+
+                  {# Note tronquée / complète #}
+                  {% set note_limit = 40 %}
+                  {% set note_content = i.notes.strip() if i.notes else '' %}
+                  <div class="note-container">
+                    {% if note_content %}
+                      {% if note_content|length <= note_limit %}
+                        <p class="fst-italic small text-muted">
+                          {{ note_content }}
+                        </p>
+                      {% else %}
+                        <p class="fst-italic small text-muted" id="note-trunc-{{ i.id }}">
+                          {{ note_content[:note_limit] }}…  
+                        </p>
+                        <p class="fst-italic small text-muted" id="note-full-{{ i.id }}" style="display: none;">
+                          {{ note_content }}
+                        </p>
+                        <button
+                          type="button"
+                          class="btn btn-link btn-sm toggle-note"
+                          data-id="{{ i.id }}"
+                          id="btn-{{ i.id }}"
+                        >
+                          Voir plus
+                        </button>
+                      {% endif %}
+                    {% else %}
+                      <p class="fst-italic small text-muted">Aucune note</p>
+                    {% endif %}
+                  </div>
+
+                  <div class="mt-2 d-flex flex-wrap gap-1">
+                    <!-- Modifier la note -->
+                    <a
+                      href="{{ url_for('edit_note', id=i.id) }}"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Modifier la note"
+                    >✏️</a>
+
+                    <!-- Voir historique -->
+                    <a
+                      href="{{ url_for('historique', id=i.id) }}"
+                      class="btn btn-sm btn-outline-info"
+                      title="Voir historique"
+                    >🕒</a>
+
+                    <!-- Formulaire AJAX pour changer l’état -->
+                    <form
+                      method="post"
+                      action="{{ url_for('update_etat', id=i.id) }}"
+                      class="d-inline ajax-form"
+                    >
+                      <select
+                        name="etat"
+                        class="form-select form-select-sm"
+                        onchange="this.form.submit()"
+                        title="Changer l'état"
+                      >
+                        <option
+                          value="Affecté"
+                          {% if i.etat == 'Affecté' %}selected{% endif %}
+                        >Affecté</option>
+                        <option
+                          value="En cours de préparation"
+                          {% if i.etat == 'En cours de préparation' %}selected{% endif %}
+                        >En cours</option>
+                        <option
+                          value="Traité"
+                          {% if i.etat == 'Traité' %}selected{% endif %}
+                        >Traité</option>
+                        <option
+                          value="Suspendu"
+                          {% if i.etat == 'Suspendu' %}selected{% endif %}
+                        >Suspendu</option>
+                        <option
+                          value="En réservation"
+                          {% if i.etat == 'En réservation' %}selected{% endif %}
+                        >En réservation</option>
+                        <option
+                          value="Transféré"
+                          {% if i.etat == 'Transféré' %}selected{% endif %}
+                        >Transféré</option>
+                      </select>
+                    </form>
+
+                    <!-- Validation (checkbox) -->
+                    <form
+                      method="post"
+                      action="{{ url_for('valider', id=i.id) }}"
+                      class="d-inline ajax-form"
+                    >
+                      <input
+                        type="checkbox"
+                        name="valide"
+                        onchange="this.form.submit()"
+                        {% if i.valide %}checked{% endif %}
+                        title="Valider"
+                      />
+                      <label class="small">Validé</label>
+                    </form>
+
+                    <!-- Suppression -->
+                    <form
+                      method="post"
+                      action="{{ url_for('delete_incident', id=i.id) }}"
+                      class="d-inline ajax-form"
+                    >
+                      <button
+                        type="submit"
+                        class="btn btn-sm btn-outline-danger"
+                        title="Supprimer"
+                      >🗑️</button>
+                    </form>
+
+                    <!-- Archivage -->
+                    <form
+                      method="post"
+                      action="{{ url_for('archive_incident', id=i.id) }}"
+                      class="d-inline ajax-form"
+                    >
+                      <input
+                        type="checkbox"
+                        name="archived"
+                        onchange="this.form.submit()"
+                        {% if i.archived %}checked{% endif %}
+                        title="Archiver"
+                      />
+                      <label class="small">Archivé</label>
+                    </form>
+                  </div>
+                </li>
+              {% endfor %}
+            {% else %}
+              <li class="list-group-item text-muted fst-italic text-center empty-placeholder">
+                Aucun incident affecté
+              </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────── -->
+  <!-- SCRIPTS FILTRAGE & DRAG/DROP & TOGGLE NOTE -->
+  <!-- ──────────────────────────────────────────────────────────────────── -->
+  <script>
+    /********************/
+    /* FONCTIONS FILTRAGE */
+    /********************/
+    function matchesFilters(cardElem) {
+      const txtSearch = document
+        .querySelector('#searchInput')
+        .value.trim()
+        .toLowerCase();
+      const selEtat = document
+        .querySelector('#filterEtat')
+        .value.toLowerCase();
+      const selUrg = document
+        .querySelector('#filterUrgence')
+        .value.toLowerCase();
+      const selSite = document
+        .querySelector('#filterSite')
+        .value.toLowerCase();
+
+      const numero = cardElem.dataset.numero;
+      const site = cardElem.dataset.site;
+      const sujet = cardElem.dataset.sujet;
+      const urgence = cardElem.dataset.urgence;
+      const etat = cardElem.dataset.etat;
+
+      if (txtSearch !== '') {
+        const txtOK =
+          numero.includes(txtSearch) ||
+          site.includes(txtSearch) ||
+          sujet.includes(txtSearch);
+        if (!txtOK) return false;
+      }
+      if (selEtat && !etat.includes(selEtat)) {
+        return false;
+      }
+      if (selUrg && !urgence.includes(selUrg)) {
+        return false;
+      }
+      if (selSite && !site.includes(selSite)) {
+        return false;
+      }
+      return true;
+    }
+
+    function applySearchAndFilters() {
+      document.querySelectorAll('.incident-card').forEach((card) => {
+        if (matchesFilters(card)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      document.querySelectorAll('.drag-col').forEach((col) => {
+        const list = col.querySelector('.incident-list');
+        const allCards = Array.from(list.querySelectorAll('.incident-card'));
+        const anyVisibleCard = allCards.some(
+          (li) => li.style.display !== 'none'
+        );
+        let placeholder = col.querySelector('.empty-placeholder');
+        if (!anyVisibleCard) {
+          if (!placeholder) {
+            placeholder = document.createElement('li');
+            placeholder.className =
+              'list-group-item text-muted fst-italic text-center empty-placeholder';
+            placeholder.innerText = 'Aucun incident affecté';
+            list.appendChild(placeholder);
+          }
+        } else {
+          if (placeholder) placeholder.remove();
+        }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      applySearchAndFilters();
+      ['#searchInput', '#filterEtat', '#filterUrgence', '#filterSite'].forEach(
+        (sel) => {
+          const el = document.querySelector(sel);
+          el.addEventListener('input', applySearchAndFilters);
+          el.addEventListener('change', applySearchAndFilters);
+        }
+      );
+      document
+        .querySelector('#clearFiltersBtn')
+        .addEventListener('click', () => {
+          document.querySelector('#searchInput').value = '';
+          document.querySelector('#filterEtat').value = '';
+          document.querySelector('#filterUrgence').value = '';
+          document.querySelector('#filterSite').value = '';
+          applySearchAndFilters();
+        });
+    });
+
+    /*****************************************/
+    /* DRAG & DROP incidents ADMIN (clean) */
+    /*****************************************/
+    function enableDragDrop() {
+      let dragged = null;
+      const container = document.getElementById('drag-root');
+      const scrollEdgeZone = 80;
+      const scrollSpeed = 25;
+      let scrollInterval = null;
+
+      document.querySelectorAll('.incident-card').forEach((card) => {
+        card.draggable = true;
+
+        card.addEventListener('dragstart', (e) => {
+          dragged = card;
+          card.classList.add('dragging');
+          card.style.boxShadow = '0 4px 24px #0d6efd88';
+          card.style.transform = 'scale(1.04) rotate(-2deg)';
+        });
+
+        card.addEventListener('dragend', () => {
+          dragged = null;
+          card.classList.remove('dragging');
+          card.style.boxShadow = '';
+          card.style.transform = '';
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          container.classList.remove('scrolling-left', 'scrolling-right');
+        });
+      });
+
+      document.querySelectorAll('.incident-list').forEach((list) => {
+        list.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          list.classList.add('drop-over-animate');
+          handleAutoScroll(e);
+        });
+        list.addEventListener('dragleave', () => {
+          list.classList.remove('drop-over-animate');
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          container.classList.remove('scrolling-left', 'scrolling-right');
+        });
+        list.addEventListener('drop', (e) => {
+          e.preventDefault();
+          list.classList.remove('drop-over-animate');
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          container.classList.remove('scrolling-left', 'scrolling-right');
+
+          if (dragged) {
+            list.appendChild(dragged);
+            // Animation colonne cible
+            list.closest('.card').animate(
+              [
+                { transform: 'scale(1.02)', boxShadow: '0 0 18px #0d6efd88' },
+                { transform: 'scale(1)', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }
+              ],
+              { duration: 300, fill: 'forwards' }
+            );
+
+            // AJAX => mise à jour BDD
+            fetch('/incidents/assign', {
+              method: 'POST',
+              body: new URLSearchParams({
+                id: dragged.dataset.id,
+                collaborateur: list.dataset.technicien
+              })
+            }).then((r) => r.json());
+          }
+        });
+      });
+
+      function handleAutoScroll(e) {
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX;
+
+        if (mouseX > rect.right - scrollEdgeZone) {
+          if (!scrollInterval) {
+            container.classList.add('scrolling-right');
+            scrollInterval = setInterval(() => {
+              container.scrollLeft += scrollSpeed;
+            }, 15);
+          }
+        } else if (mouseX < rect.left + scrollEdgeZone) {
+          if (!scrollInterval) {
+            container.classList.add('scrolling-left');
+            scrollInterval = setInterval(() => {
+              container.scrollLeft -= scrollSpeed;
+            }, 15);
+          }
+        } else {
+          clearInterval(scrollInterval);
+          scrollInterval = null;
+          container.classList.remove('scrolling-left', 'scrolling-right');
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      enableDragDrop();
+    });
+    window.enableDragDrop = enableDragDrop;
+
+    /*************************/
+    /* TOGGLE “Voir plus/moins” NOTE */
+    /*************************/
+    document.addEventListener('click', function(e) {
+      if (e.target.matches('.toggle-note')) {
+        const id = e.target.dataset.id;
+        const trunc = document.getElementById(`note-trunc-${id}`);
+        const full  = document.getElementById(`note-full-${id}`);
+        const btn   = document.getElementById(`btn-${id}`);
+        if (!trunc || !full || !btn) return;
+
+        if (full.style.display === 'none') {
+          trunc.style.display = 'none';
+          full.style.display = 'block';
+          btn.innerText = 'Voir moins';
+        } else {
+          trunc.style.display = 'block';
+          full.style.display = 'none';
+          btn.innerText = 'Voir plus';
+        }
+      }
+    });
+  </script>
+
+  <!-- ──────────────────────────────────────────────────────────────────── -->
+  <!-- STYLES SUPPLÉMENTAIRES POUR FILTRAGE & SCROLL -->
+  <!-- ──────────────────────────────────────────────────────────────────── -->
+  <style>
+    /* Quand on drag la carte */
+    .incident-card.dragging {
+      opacity: 0.6 !important;
+      z-index: 10;
+      cursor: grabbing !important;
+    }
+
+    /* Bord pointillé + fond léger quand survol liste */
+    .incident-list.drop-over-animate {
+      background: linear-gradient(110deg, #eaf1fa 70%, #cbe2ff 100%);
+      box-shadow: 0 0 16px #0d6efd44;
+      transition: box-shadow 0.3s, background 0.3s;
+      border-radius: 12px;
+    }
+
+    /* Indicateur scroll horizontal */
+    #drag-root.scrolling-left {
+      box-shadow: inset 10px 0 16px -8px rgba(0, 0, 0, 0.15);
+    }
+    #drag-root.scrolling-right {
+      box-shadow: inset -10px 0 16px -8px rgba(0, 0, 0, 0.15);
+    }
+  </style>
+
+{% else %}
+  <!-- ========================= -->
+  <!-- VUE TECHNICIEN (cartes en grille) -->
+  <!-- ========================= -->
+  <div id="userView" class="d-flex flex-wrap gap-3">
+    {% for i in incidents %}
+      <div class="card small-card shadow-sm">
+        <div class="card-header text-center fw-bold">
+          {{ i.collaborateur.capitalize() }}
+        </div>
+        <div class="card-body">
+          <p><strong>#{{ i.numero }}</strong></p>
+          <p><small>{{ i.site }} / {{ i.sujet }}</small></p>
+          <p><small>{{ i.date_affectation|format_date }}</small></p>
+          <p>
+            {% if i.etat == 'Traité' %}
+              <span class="badge bg-success text-white">{{ i.etat }}</span>
+            {% elif i.etat == 'Affecté' %}
+              <span class="badge bg-primary text-white">{{ i.etat }}</span>
+            {% elif i.etat == 'En cours de préparation' %}
+              <span class="badge bg-warning text-dark">{{ i.etat }}</span>
+            {% elif i.etat == 'Suspendu' %}
+              <span class="badge bg-danger text-white">{{ i.etat }}</span>
+            {% else %}
+              <span class="badge bg-secondary text-white">{{ i.etat }}</span>
+            {% endif %}
+            {% if i.valide %}<span class="badge bg-purple text-white">Validé</span>{% endif %}
+          </p>
+
+          {# Note tronquée #}
+          {% set note_limit = 40 %}
+          {% set note_content = i.notes.strip() if i.notes else '' %}
+          <div>
+            {% if note_content %}
+              {% if note_content|length <= note_limit %}
+                <span class="fst-italic small text-muted">{{ note_content }}</span>
+              {% else %}
+                <p class="fst-italic small text-muted" id="note-trunc-{{ i.id }}">
+                  {{ note_content[:note_limit] }}…  
+                </p>
+                <p class="fst-italic small text-muted" id="note-full-{{ i.id }}" style="display: none;">
+                  {{ note_content }}
+                </p>
+                <button
+                  type="button"
+                  class="btn btn-link small toggle-note"
+                  data-id="{{ i.id }}"
+                  id="btn-{{ i.id }}"
+                >
+                  Voir plus
+                </button>
+              {% endif %}
+            {% else %}
+              <span class="fst-italic small text-muted">Aucune note</span>
+            {% endif %}
+          </div>
+
+          <div class="d-flex flex-wrap gap-1 mt-2">
+            <a href="{{ url_for('edit_note', id=i.id) }}" class="btn btn-sm btn-outline-secondary" title="Modifier la note">✏️</a>
+            <a href="{{ url_for('historique', id=i.id) }}" class="btn btn-sm btn-outline-info" title="Voir historique">🕒</a>
+            <form method="post" action="{{ url_for('update_etat', id=i.id) }}" class="d-inline ajax-form">
+              <select name="etat" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="Affecté" {% if i.etat == 'Affecté' %}selected{% endif %}>Affecté</option>
+                <option value="En cours de préparation" {% if i.etat == 'En cours de préparation' %}selected{% endif %}>En cours</option>
+                <option value="Traité" {% if i.etat == 'Traité' %}selected{% endif %}>Traité</option>
+                <option value="Suspendu" {% if i.etat == 'Suspendu' %}selected{% endif %}>Suspendu</option>
+                <option value="En réservation" {% if i.etat == 'En réservation' %}selected{% endif %}>En réservation</option>
+                <option value="Transféré" {% if i.etat == 'Transféré' %}selected{% endif %}>Transféré</option>
+              </select>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    // Toggle “Voir plus / Voir moins” pour les notes
+    document.addEventListener('click', function(e) {
+      if (e.target.matches('.toggle-note')) {
+        const id = e.target.dataset.id;
+        const trunc = document.getElementById(`note-trunc-${id}`);
+        const full  = document.getElementById(`note-full-${id}`);
+        const btn   = document.getElementById(`btn-${id}`);
+        if (!trunc || !full || !btn) return;
+        if (full.style.display === 'none') {
+          trunc.style.display = 'none';
+          full.style.display = 'block';
+          btn.innerText = 'Voir moins';
+        } else {
+          trunc.style.display = 'block';
+          full.style.display = 'none';
+          btn.innerText = 'Voir plus';
+        }
+      }
+    });
+  </script>
+{% endif %}

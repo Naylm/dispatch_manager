@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+  <!-- Contenu des incidents + “Vue technicien / admin” -->
+  <div id="incident-content">
+    {% include "home_content.html" %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <!-- Socket.IO & AJAX pour rafraîchir les incidents en temps réel -->
+  <script>
+    const socket = io();
+    // Rejoindre une room basée sur le nom de l’utilisateur (minuscule)
+    socket.emit('join', { room: '{{ session["user"].lower() }}' });
+
+    function refreshIncidents() {
+      fetch('{{ url_for("home_content_api") }}')
+        .then(resp => resp.text())
+        .then(html => {
+          document.getElementById('incident-content').innerHTML = html;
+          if (window.enableDragDrop) enableDragDrop();
+        });
+    }
+
+    socket.on('incident_update', refreshIncidents);
+
+    socket.on('new_assignment', data => {
+      alert(`Nouveau ticket #${data.numero} sur ${data.site} (${data.date})`);
+      refreshIncidents();
+    });
+
+    // Soumissions AJAX pour les formulaires “ajax-form”
+    document.body.addEventListener('submit', e => {
+      if (e.target.matches('.ajax-form')) {
+        e.preventDefault();
+        fetch(e.target.action, {
+          method: e.target.method,
+          body: new FormData(e.target),
+        }).then(() => refreshIncidents());
+      }
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Base de Connaissances{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>Base de Connaissances</h3>
+    <a href="{{ url_for('add_kb') }}" class="btn btn-primary btn-sm">
+      + Nouvelle fiche
+    </a>
+  </div>
+
+  {% if entries %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      {% for e in entries %}
+        <div class="col">
+          <div class="card h-100 shadow-sm">
+            <div class="card-header">
+              <strong>#{{ e.numero_incident or '—' }}</strong>
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">{{ e.titre }}</h5>
+              <p class="card-text">
+                <strong>Description :</strong><br>
+                {{ e.description }}
+              </p>
+              <p class="card-text">
+                <strong>Résolution :</strong><br>
+                {{ e.resolution }}
+              </p>
+              <p class="card-text">
+                <strong>Possible CAU :</strong>
+                {% if e.possible_cau == 1 %}
+                  Oui
+                {% else %}
+                  Non
+                {% endif %}
+              </p>
+              <p class="card-text">
+                <strong>Temps estimé :</strong> {{ e.temps_resolution }}
+              </p>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+              <small class="text-muted">
+                Créé par {{ e.poster }} le {{ e.created_at | format_date }}
+              </small>
+              <div>
+                <a href="{{ url_for('edit_kb', id=e.id) }}" class="btn btn-sm btn-outline-secondary">
+                  ✏️ Éditer
+                </a>
+                <form
+                  method="post"
+                  action="{{ url_for('delete_kb', id=e.id) }}"
+                  class="d-inline"
+                  onsubmit="return confirm('Supprimer cette fiche KB ?');"
+                >
+                  <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>Aucune fiche de connaissance n’a encore été créée.</p>
+  {% endif %}
+{% endblock %}

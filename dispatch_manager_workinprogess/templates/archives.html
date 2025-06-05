@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Archives{% endblock %}
+
+{% block content %}
+  <h4 class="mb-3">Tickets archivés</h4>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+        <th>#</th><th>Numéro</th><th>Site</th><th>Sujet</th>
+        <th>Date Affect.</th><th>État</th><th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in incidents %}
+      <tr>
+        <td>{{ i.id }}</td>
+        <td>{{ i.numero }}</td>
+        <td>{{ i.site }}</td>
+        <td>{{ i.sujet }}</td>
+        <td>{{ i.date_affectation|format_date }}</td>
+        <td>{{ i.etat }}</td>
+        <td>{{ i.notes or '—' }}</td>
+      </tr>
+      {% endfor %}
+      {% if incidents|length == 0 %}
+      <tr>
+        <td colspan="7" class="text-center">Aucune archive trouvée.</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+{% endblock %}

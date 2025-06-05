@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Historique Ticket #{{ id }}{% endblock %}
+
+{% block content %}
+  {% if logs %}
+  <table class="table table-bordered table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Date</th>
+        <th>Modifié par</th>
+        <th>Champ</th>
+        <th>Avant</th>
+        <th>Après</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ log.date_modification }}</td>
+        <td>{{ log.modifie_par }}</td>
+        <td>{{ log.champ }}</td>
+        <td class="text-danger">{{ log.ancienne_valeur }}</td>
+        <td class="text-success">{{ log.nouvelle_valeur }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="alert alert-info">
+    Aucun changement enregistré pour ce ticket.
+  </div>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Statistiques Bonus</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <!-- On charge Chart.js depuis un CDN pour tracer les graphes -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .chart-container {
+      position: relative;
+      margin: auto;
+      height: 400px;
+      width: 90%;
+    }
+    .table-stats {
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body class="container py-4">
+  <h2 class="mb-4">Statistiques par technicien et par statut</h2>
+
+  <!-- 1. Tableau récapitulatif par technicien / statut -->
+  <table class="table table-bordered table-sm table-stats mb-5">
+    <thead>
+      <tr>
+        <th>Technicien</th>
+        {% for statut in statuts %}
+          <th class="text-center">{{ statut }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for tech in techniciens %}
+        <tr>
+          <td><strong>{{ tech }}</strong></td>
+          {% for statut in statuts %}
+            <td class="text-center">
+              {{ data_par_tech[tech].get(statut, 0) }}
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- 2. Graphique à barres empilées (par technicien / statut) -->
+  <div class="chart-container mb-5">
+    <canvas id="barStackChart"></canvas>
+  </div>
+
+  <hr />
+
+  <!-- 3. Série temporelle "restants" vs "transférés/réservés" par jour -->
+  <h2 class="mt-5 mb-3">Évolution journalière (restants vs transférés/réservés)</h2>
+  <div class="chart-container mb-5">
+    <canvas id="timeSeriesChart"></canvas>
+  </div>
+
+  <script>
+    // === 2. Barres empilées par technicien / statut ===
+    const techniciens = {{ techniciens | tojson }};
+    const statuts      = {{ statuts | tojson }};
+    const dataParTech  = {{ data_par_tech | tojson }};
+
+    // Préparer les datasets pour Chart.js
+    const datasetsBar = [];
+    statuts.forEach((statut, idx) => {
+      const values = techniciens.map(t => dataParTech[t][statut] || 0);
+      const couleurs = [
+        '#0d6efd88','#fd7e1488','#19875488','#dc354588','#ffe0f088','#aee4ff88'
+      ];
+      datasetsBar.push({
+        label: statut,
+        data: values,
+        backgroundColor: couleurs[idx % couleurs.length],
+        borderWidth: 1
+      });
+    });
+
+    const ctxBar = document.getElementById('barStackChart').getContext('2d');
+    new Chart(ctxBar, {
+      type: 'bar',
+      data: {
+        labels: techniciens,
+        datasets: datasetsBar
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Incidents par technicien et par statut'
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
+        },
+        scales: {
+          x: { stacked: true },
+          y: { stacked: true, beginAtZero: true }
+        }
+      }
+    });
+
+    // === 3. Série temporelle « restants » vs « transférés/réservés » ===
+    const restantsParJour   = {{ restants_par_jour | tojson }};
+    const transfresParJour  = {{ transfres_par_jour | tojson }};
+
+    // Extraire les dates en labels (en supposant que les deux listes contiennent les mêmes dates – sinon on peut fusionner)
+    const dates = restantsParJour.map(r => r['date_affectation']);
+
+    const dataRestants = restantsParJour.map(r => r['restants']);
+    const dataTransfres = transfresParJour.map(r => r['transfres']);
+
+    const ctxTime = document.getElementById('timeSeriesChart').getContext('2d');
+    new Chart(ctxTime, {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          {
+            label: 'Restants',
+            data: dataRestants,
+            borderColor: '#fd7e14',
+            backgroundColor: 'rgba(253, 126, 20, 0.3)',
+            fill: true,
+            tension: 0.3
+          },
+          {
+            label: 'Transférés / Réservés',
+            data: dataTransfres,
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13, 110, 253, 0.3)',
+            fill: true,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Evolution journalière des incidents restants et transférés/réservés'
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { parser: 'YYYY-MM-DD', unit: 'day', tooltipFormat: 'DD-MM-YYYY' },
+            title: { display: true, text: 'Date d’affectation' }
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Nombre d’incidents' }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

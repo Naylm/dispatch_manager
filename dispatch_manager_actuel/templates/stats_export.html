@@ -1,0 +1,134 @@
+<!-- templates/stats_export.html -->
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export Statistiques PDF</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 1cm;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 0.5em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5em;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid #333;
+      padding: 4px 6px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    .section-title {
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+      font-size: 14px;
+      font-weight: bold;
+      border-bottom: 1px solid #444;
+      padding-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Rapport Statistiques</h1>
+
+  <!-- Section 1: Sujets par site -->
+  <div class="section-title">Sujets par Site</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Site</th>
+        <th>Sujet</th>
+        <th>Nombre Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in sujets_sites %}
+      <tr>
+        <td>{{ row.site }}</td>
+        <td>{{ row.sujet }}</td>
+        <td>{{ row.total }}</td>
+      </tr>
+      {% endfor %}
+      {% if sujets_sites|length == 0 %}
+      <tr>
+        <td colspan="3" style="text-align:center;"><em>Aucune donnée disponible</em></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- Section 2: Traités par jour -->
+  <div class="section-title">Tickets Traités par Jour</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Site</th>
+        <th>Sujet</th>
+        <th>Nombre Traités</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in traites %}
+      <tr>
+        <td>{{ row.date_affectation|format_date }}</td>
+        <td>{{ row.site }}</td>
+        <td>{{ row.sujet }}</td>
+        <td>{{ row.total }}</td>
+      </tr>
+      {% endfor %}
+      {% if traites|length == 0 %}
+      <tr>
+        <td colspan="4" style="text-align:center;"><em>Aucune donnée disponible</em></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <!-- Section 3: Restants par jour -->
+  <div class="section-title">Tickets Restants par Jour</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Site</th>
+        <th>Sujet</th>
+        <th>Affecté</th>
+        <th>En cours de préparation</th>
+        <th>Suspendu</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in restants %}
+      <tr>
+        <td>{{ row.date_affectation|format_date }}</td>
+        <td>{{ row.site }}</td>
+        <td>{{ row.sujet }}</td>
+        <td>{{ row.affecte }}</td>
+        <td>{{ row.en_cours }}</td>
+        <td>{{ row.suspendu }}</td>
+      </tr>
+      {% endfor %}
+      {% if restants|length == 0 %}
+      <tr>
+        <td colspan="6" style="text-align:center;"><em>Aucune donnée disponible</em></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+</body>
+</html>

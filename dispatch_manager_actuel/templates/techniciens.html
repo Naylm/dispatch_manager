@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestion des techniciens</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" />
+</head>
+<body class="container py-4">
+
+  <nav class="navbar navbar-light bg-light rounded shadow-sm mb-4">
+    <div class="container-fluid">
+      <span class="navbar-brand fw-bold">Gestion des techniciens</span>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('home') }}" class="btn btn-outline-primary btn-sm">← Retour</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Formulaire d'ajout d'un nouveau technicien -->
+  <div class="row mb-3">
+    <div class="col-md-8">
+      <form
+        method="post"
+        action="{{ url_for('add_technicien') }}"
+        class="d-flex gap-2 align-items-center"
+      >
+        <input
+          name="prenom"
+          class="form-control"
+          placeholder="Prénom du technicien"
+          required
+          autocomplete="off"
+        />
+        <input
+          name="password"
+          type="password"
+          class="form-control"
+          placeholder="Mot de passe"
+          required
+        />
+        <select name="role" class="form-select" style="max-width:150px;">
+          <option value="technicien" selected>Technicien</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit" class="btn btn-success">Ajouter</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Table des techniciens existants -->
+  <table class="table table-hover rounded shadow-sm">
+    <thead>
+      <tr>
+        <th>Prénom</th>
+        <th>Rôle</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tech in techniciens %}
+      <tr>
+        <td>
+          <form
+            method="post"
+            action="{{ url_for('edit_technicien', id=tech.id) }}"
+            class="d-inline-flex gap-2 align-items-center"
+          >
+            <input
+              name="prenom"
+              class="form-control"
+              style="width:110px;"
+              value="{{ tech.prenom }}"
+              required
+            />
+            <input
+              name="password"
+              type="password"
+              class="form-control"
+              style="width:130px;"
+              placeholder="Changer mot de passe"
+            />
+            <select name="role" class="form-select" style="max-width:120px;">
+              <option value="technicien" {% if tech.role == 'technicien' %}selected{% endif %}>
+                Technicien
+              </option>
+              <option value="admin" {% if tech.role == 'admin' %}selected{% endif %}>
+                Admin
+              </option>
+            </select>
+            <button
+              class="btn btn-sm btn-outline-success ms-1"
+              type="submit"
+              title="Enregistrer"
+            >💾</button>
+          </form>
+        </td>
+        <td>{{ tech.role|capitalize if tech.role else 'Technicien' }}</td>
+        <td>
+          <button
+            class="btn btn-sm btn-outline-danger ms-1"
+            onclick="confirmDelete({{ tech.id }}, '{{ tech.prenom }}')"
+          >🗑️</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Confirmation suppression / Réattribution -->
+  <div
+    class="modal fade"
+    id="confirmModal"
+    tabindex="-1"
+    aria-labelledby="confirmModalLabel"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog">
+      <form method="post" id="deleteForm" action="">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="confirmModalLabel">Suppression technicien</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Fermer"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div id="modalText"></div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >Annuler</button>
+            <button
+              type="submit"
+              class="btn btn-danger"
+              id="modalDeleteBtn"
+            >Supprimer</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Gestion popup avancée avec réattribution incidents si besoin
+    function confirmDelete(id, prenom) {
+      fetch('/technicien/incidents/' + id)
+        .then(resp => resp.json())
+        .then(data => {
+          if (data.incidents && data.incidents.length > 0) {
+            // Si le technicien a des incidents en cours : on affiche seulement les <select> et un bouton JS
+            let html = "<p><b>" + data.tech_prenom + "</b> a des tickets en cours.<br>Merci de les réattribuer :</p>";
+            data.incidents.forEach(inc => {
+              html +=
+                "<div class='mb-2'><b>#" + inc.numero + "</b> - " + inc.site + " - " + inc.sujet +
+                "<select class='form-select d-inline ms-2' style='width:180px;display:inline-block' name='incident_" + inc.id + "' required>";
+              data.autres_techs.forEach(t => {
+                html += "<option value='" + t.prenom + "'>" + t.prenom + "</option>";
+              });
+              html += "</select></div>";
+            });
+            html += "<button type='button' id='validateReassign' class='btn btn-danger mt-2'>Valider la réattribution et supprimer</button>";
+            document.getElementById('modalText').innerHTML = html;
+            document.getElementById('modalDeleteBtn').style.display = "none";
+
+            let myModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+            myModal.show();
+
+            document.getElementById('validateReassign').onclick = function() {
+              let dataForm = new FormData();
+              document.querySelectorAll('#modalText select').forEach(sel => {
+                dataForm.append(sel.name, sel.value);
+              });
+              fetch('/technicien/transfer_delete/' + id, {
+                method: "POST",
+                body: dataForm
+              })
+              .then(resp => resp.json())
+              .then(result => {
+                if (result.status === "ok") {
+                  window.location.reload();
+                } else {
+                  alert("Erreur : " + result.message);
+                }
+              });
+            };
+          } else {
+            // Aucun incident : suppression normale
+            document.getElementById('deleteForm').action =
+              "{{ url_for('delete_technicien', id=0) }}".replace('0', id);
+            document.getElementById('modalText').innerText =
+              "Supprimer le technicien '" + prenom + "' ?";
+            document.getElementById('modalDeleteBtn').style.display = "inline-block";
+            let myModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+            myModal.show();
+          }
+        });
+    }
+  </script>
+</body>
+</html>
